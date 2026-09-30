@@ -39,6 +39,11 @@ interface ISeaport {
     function fulfillBasicOrder(BasicOrderParameters calldata parameters) external payable returns (bool fulfilled);
 }
 
+interface IWETH {
+    function balanceOf(address) external view returns (uint256);
+    function withdraw(uint256) external;
+}
+
 /**
  * @title SeatBuyer
  * @notice Turns treasury ETH into identity.md seats by filling OpenSea (Seaport) listings, behind two
@@ -50,6 +55,7 @@ interface ISeaport {
  *         operator, not an owner: it can only ever trigger a capped identity.md purchase into the
  *         vault, with no path to move funds anywhere else. This is the "auto-buy / floor-sweep / snipe"
  *         engine of the flywheel; the keeper picks the cheapest live listing off-chain and fills it here.
+ *         Funding arrives by bridge; if it lands as WETH rather than ETH, it is unwrapped in place first.
  */
 contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
     ISeaport public immutable seaport;
@@ -57,6 +63,7 @@ contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
     address public immutable seatVault; // holds + pairs the seats, and receives any rescued ETH
     address public immutable keeper; // the only caller that can trigger a buy (operator, not admin)
     uint256 public immutable maxSeatPrice; // hard ceiling: a compromised keeper can never overpay above this
+    IWETH public immutable weth; // bridged funds may arrive wrapped; unwrapped in place before use
 
     event SeatBought(uint256 indexed tokenId, address indexed offerer, uint256 totalCost);
     event EthRescued(uint256 amount);
@@ -69,10 +76,17 @@ contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
     error InsufficientEth(uint256 need, uint256 have);
     error FillFailed();
 
-    constructor(ISeaport _seaport, IERC721 _identityMd, address _seatVault, address _keeper, uint256 _maxSeatPrice) {
+    constructor(
+        ISeaport _seaport,
+        IERC721 _identityMd,
+        address _seatVault,
+        address _keeper,
+        uint256 _maxSeatPrice,
+        IWETH _weth
+    ) {
         require(
             address(_seaport) != address(0) && address(_identityMd) != address(0) && _seatVault != address(0)
-                && _keeper != address(0) && _maxSeatPrice > 0,
+                && _keeper != address(0) && _maxSeatPrice > 0 && address(_weth) != address(0),
             "bad arg"
         );
         seaport = _seaport;
@@ -80,9 +94,16 @@ contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
         seatVault = _seatVault;
         keeper = _keeper;
         maxSeatPrice = _maxSeatPrice;
+        weth = _weth;
     }
 
-    receive() external payable {} // bridged treasury ETH lands here
+    receive() external payable {} // bridged treasury ETH lands here (and WETH.withdraw pays out here)
+
+    /// turn any WETH the bridge delivered into ETH, in place (anyone may call; it can only help)
+    function unwrap() public {
+        uint256 w = weth.balanceOf(address(this));
+        if (w > 0) weth.withdraw(w);
+    }
 
     /// total ETH a listing costs: what the seller gets plus every marketplace-fee / royalty recipient
     function orderCost(BasicOrderParameters calldata p) public pure returns (uint256 cost) {
@@ -103,6 +124,7 @@ contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
         uint256 cost = orderCost(p);
         uint256 limit = maxPay < maxSeatPrice ? maxPay : maxSeatPrice;
         if (cost > limit) revert PriceTooHigh(cost, limit);
+        unwrap();
         if (address(this).balance < cost) revert InsufficientEth(cost, address(this).balance);
 
         tokenId = p.offerIdentifier;
@@ -118,6 +140,7 @@ contract SeatBuyer is ReentrancyGuard, IERC721Receiver {
     /// keeper or the vault so it can't be front-run to grief a pending buySeat by emptying the balance.
     function rescueEth() external nonReentrant {
         if (msg.sender != keeper && msg.sender != seatVault) revert NotKeeper();
+        unwrap();
         uint256 bal = address(this).balance;
         if (bal == 0) return;
         (bool ok,) = payable(seatVault).call{value: bal}("");

@@ -39,18 +39,18 @@ contract HiveRewardRouterTest is Test {
 
     function _fundRouter(uint256 amt) internal { imd.mint(address(router), amt); }
 
-    // 80/20 split: a staker gets the 80% via depositReward, the distributor holds the 20%
-    function test_routeSplits80_20() public {
+    // 60/40 split: a staker gets the 60% bonus via depositReward, the distributor holds the 40% holder pot
+    function test_routeSplits60_40() public {
         vm.prank(alice);
         staking.stake(100 * U);
 
         _fundRouter(100 * U);
         (uint256 toStakers, uint256 toHolders) = router.route();
 
-        assertEq(toStakers, 80 * U, "80% to stakers");
-        assertEq(toHolders, 20 * U, "20% to holders");
-        assertEq(staking.pending(alice), 80 * U, "staker pending == 80");
-        assertEq(imd.balanceOf(address(dist)), 20 * U, "distributor funded with 20");
+        assertEq(toStakers, 60 * U, "60% to stakers");
+        assertEq(toHolders, 40 * U, "40% to holders");
+        assertEq(staking.pending(alice), 60 * U, "staker pending == 60");
+        assertEq(imd.balanceOf(address(dist)), 40 * U, "distributor funded with 40");
         assertEq(imd.balanceOf(address(router)), 0, "router emptied");
     }
 
@@ -58,8 +58,8 @@ contract HiveRewardRouterTest is Test {
     function test_routeCarriesStakerShareWhenNoStakers() public {
         _fundRouter(100 * U);
         router.route();
-        assertEq(staking.rewardCarry(), 80 * U, "staker share carried");
-        assertEq(imd.balanceOf(address(dist)), 20 * U, "holders still funded");
+        assertEq(staking.rewardCarry(), 60 * U, "staker share carried");
+        assertEq(imd.balanceOf(address(dist)), 40 * U, "holders still funded");
     }
 
     // empty balance is a no-op, never reverts
@@ -71,8 +71,8 @@ contract HiveRewardRouterTest is Test {
 
     // the split is a fixed constant — no setter exists (checked at the type level + value here)
     function test_splitIsImmutable() public view {
-        assertEq(router.STAKER_BPS(), 8000);
-        assertEq(router.holderBps(), 2000);
+        assertEq(router.STAKER_BPS(), 6000);
+        assertEq(router.holderBps(), 4000);
     }
 
     // constructor rejects a staking contract that pays a different reward token
@@ -92,6 +92,6 @@ contract HiveRewardRouterTest is Test {
         (uint256 s, uint256 h) = router.route();
         assertEq(s + h, amt, "no IMD created or lost");
         assertEq(imd.balanceOf(address(router)), 0, "router fully drained");
-        assertEq(s, (uint256(amt) * 8000) / 10_000, "staker share exact");
+        assertEq(s, (uint256(amt) * 6000) / 10_000, "staker share exact");
     }
 }

@@ -17,7 +17,7 @@ Technically this is a **time‑weighted average balance (TWAB)** over the whole 
 
 ## 🔒 Stake (optional — earns more)
 
-Lock your $HIVE in [`HiveStaking`](src/HiveStaking.sol) and you earn the **big pot**, plus a **loyalty multiplier** that grows the longer you stay:
+Lock your $HIVE in [`HiveStaking`](src/HiveStaking.sol) and you earn the **extra 60% bonus pot** on top of your 40% holder slice, plus a **loyalty multiplier** that grows the longer you stay:
 
 | Time staked | Multiplier |
 |---|---|
@@ -28,16 +28,16 @@ Lock your $HIVE in [`HiveStaking`](src/HiveStaking.sol) and you earn the **big p
 
 For the believers who want maximum yield and are happy to lock.
 
-## The split: 80 / 20, fixed in code
+## The split: 40 / 60, base + bonus, fixed in code
 
 Every batch of IMD is split by [`HiveRewardRouter`](src/HiveRewardRouter.sol):
 
-- **80% → stakers**
-- **20% → all holders** (the soft‑stake pot)
+- **40% → a pot every holder shares** — staked or not (your staked $HIVE counts too)
+- **60% → an extra pot only stakers share**
 
-This is a `constant` with **no owner and no setter** — the team cannot change it. "Stakers get most, every holder gets a slice" is enforced by the contract, not by a promise.
+So a **staker earns the 40% holder slice AND the 60% staker bonus**; a **non‑staking holder earns the 40% slice**. Everyone who holds earns something; staking is a bonus on top — you never have to lock to earn. This is a `constant` with **no owner and no setter** — the team cannot change it.
 
-There's an elegant property here: if stakers get share `s`, rational holders stake until the two per‑token yields equalise, and the math lands on **equilibrium staked % = s**. So an 80/20 split naturally pulls ~80% of circulating supply into staking, while passive holders keep full liquidity and still earn. The split ratio *is* the target staking rate.
+Later, the tokens our seats earn from identity.md launches go to **long‑time stakers** as an added loyalty bonus (staked ≥ a set time) — so the "time bonus" rewards conviction on top of the 60%.
 
 ---
 
@@ -47,7 +47,7 @@ The holder slice is computed off‑chain and committed on‑chain as a **merkle 
 
 1. **TWAB, not a snapshot.** Rewards count *time held*, so nobody can buy a giant bag one block before a snapshot, grab a reward, and dump. Loyalty can't be faked. This is also what makes "if it moves, the link breaks" literally true.
 2. **A floor.** A wallet must average at least a minimum balance over the period to be eligible. This kills dust and makes sybil‑splitting pointless — the pot is strictly pro‑rata by balance, so splitting one bag across many wallets never helped anyway, and below the floor each shard earns zero.
-3. **Exclusions.** Infrastructure never receives a slice: the bonding curve, the liquidity pool, the fee splitter, **the staking contract** (so stakers don't double‑dip the holder pot), the treasury, the router, and the burn address.
+3. **Exclusions + staked counts.** Infrastructure never receives a slice: the bonding curve, the liquidity pool, the fee splitter, the treasury, the router, and the burn address. The **staking contract's** balance isn't orphaned — it's **attributed back to the individual stakers** (from the on‑chain stake/unstake events), so a staker's staked $HIVE counts toward their 40% holder slice too, with no double‑counting.
 
 ## Why the distribution is trust‑minimised
 
@@ -63,7 +63,7 @@ The only thing left to trust is *"the published holder list is honest"* — and 
 ## Verify a distribution yourself
 
 1. Take the round's block window and rules (TWAB, floor, exclusion list) — all public.
-2. Replay $HIVE `Transfer` events over that window from an archive RPC and compute each wallet's TWAB.
+2. Replay $HIVE `Transfer` events **and `HiveStaking` stake/unstake events** over that window from an archive RPC, and compute each holder's TWAB of **wallet + staked** balance.
 3. Rebuild the merkle tree (leaf = `keccak256(keccak256(abi.encode(account, amount)))`, sorted‑pair parents) and compare the root to the one the contract emitted in `RoundOpened`.
 
 If it matches, every holder got exactly what the rules say — no more, no less.

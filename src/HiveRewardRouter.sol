@@ -12,13 +12,15 @@ interface IHiveStaking {
 
 /**
  * @title HiveRewardRouter
- * @notice Immutable, no-admin split of the seats' IMD between the two holder lanes:
- *           - STAKER_BPS (80%) -> HiveStaking.depositReward(): pro-rata to loyalty-weighted stakers.
- *           - the remainder (20%) -> the HiveMerkleDistributor: a slice for every (soft) holder.
- *         The keeper bridges the IMD the seats earned to Robinhood Chain, drops it here, and calls
- *         route(). The split is fixed at deployment — no owner, no setter, no way to change who gets
- *         what, and no path that can pull funds out to a personal wallet. "Stakers get most, every
- *         holder gets a slice" is enforced by code, not by a promise.
+ * @notice Immutable, no-admin split of the seats' IMD into the "base + bonus" reward model:
+ *           - the holder pot (40%) -> the HiveMerkleDistributor: shared by EVERY holder, staked or
+ *             not (the snapshot counts staked $HIVE too, so stakers earn this slice as well).
+ *           - STAKER_BPS (60%) -> HiveStaking.depositReward(): an EXTRA pot only stakers share,
+ *             pro-rata by loyalty weight.
+ *         So a staker earns the holder slice AND the staker bonus; a non-staking holder earns the
+ *         holder slice. The keeper bridges the IMD the seats earned to Robinhood Chain, drops it here,
+ *         and calls route(). The split is fixed at deployment — no owner, no setter, no way to change
+ *         who gets what, and no path that can pull funds out to a personal wallet. Enforced by code.
  *
  * Trust surface: route() is permissionless and only ever moves the router's own balance to the two
  * fixed sinks. The staking allowance is set to the staking contract alone, once, in the constructor.
@@ -27,10 +29,10 @@ contract HiveRewardRouter is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable rewardToken; // bridged IMD on Robinhood Chain (what the seats earn)
-    IHiveStaking public immutable staking; // receives STAKER_BPS via depositReward()
-    address public immutable distributor; // receives the remainder (the all-holders pot)
+    IHiveStaking public immutable staking; // receives STAKER_BPS — the stakers-only bonus pot — via depositReward()
+    address public immutable distributor; // receives the remainder — the 40% pot every holder shares
 
-    uint256 public constant STAKER_BPS = 8000; // 80% -> stakers
+    uint256 public constant STAKER_BPS = 6000; // 60% -> stakers-only bonus pot (holders share the other 40%)
     uint256 public constant BPS = 10_000;
 
     event Routed(uint256 total, uint256 toStakers, uint256 toHolders);
@@ -52,7 +54,7 @@ contract HiveRewardRouter is ReentrancyGuard {
     }
 
     /**
-     * @notice Split the router's entire rewardToken balance 80/20 and forward each part.
+     * @notice Split the router's entire rewardToken balance 60/40 (stakers bonus / all-holders pot) and forward each part.
      *         Permissionless, no-admin, no withdraw. The rounding remainder falls to the holder pot.
      *         Never reverts on an empty balance.
      * @return toStakers IMD handed to HiveStaking. @return toHolders IMD sent to the distributor.
