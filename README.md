@@ -28,7 +28,7 @@ Two ways to earn, and you never have to lock to earn *something* — see **[REWA
 | [`HiveStaking`](src/HiveStaking.sol) | Stake $HIVE, earn IMD, loyalty multiplier (1×→2×) | Robinhood Chain | **live** — `0x4a56860781f90Cd4d9D9883b33c2B9bE94E88695` |
 | [`HiveRewardRouter`](src/HiveRewardRouter.sol) | Immutable 80/20 split of IMD: stakers / all holders | Robinhood Chain | ready to deploy |
 | [`HiveMerkleDistributor`](src/HiveMerkleDistributor.sol) | The all‑holders pot: TWAB snapshot → merkle round → push/claim | Robinhood Chain | ready to deploy |
-| [`SeatBuyer`](src/SeatBuyer.sol) | Capped, collection‑checked Seaport auto‑buyer for seats | Ethereum | optional (buying is currently manual) |
+| [`SeatBuyer`](src/SeatBuyer.sol) | The flywheel's seat‑buyer — capped + collection‑checked, so the keeper (or an autonomous bot) can only ever buy identity.md seats into the vault, never move funds anywhere else | Ethereum | ready to deploy — moving seat buys from manual to automatic |
 
 **$HIVE token:** `0xCdaE63D95D6dd4f89f6e508c77bD4388b4e5C8Ab` · **Explorer:** https://robinhoodchain.blockscout.com/address/0xCdaE63D95D6dd4f89f6e508c77bD4388b4e5C8Ab
 
@@ -39,6 +39,7 @@ Open any address above on the explorer and hit *Contract → Code* to see the ve
 - **Immutable splits.** `HiveSplitter` (fees) and `HiveRewardRouter` (rewards) have their percentages as `constant`s and no owner. The team cannot change the cut, ever.
 - **No custody of your tokens for the holder slice.** The soft‑stake / holder pot never asks you to lock or move anything. Your $HIVE stays in your wallet.
 - **Non‑custodial distribution.** `HiveMerkleDistributor` can only pay the address encoded in each merkle leaf, can never pay out more than it holds, and has no owner‑withdraw. Each round's root is recomputable by anyone from public data.
+- **Enforced, capped buying.** Seat purchases run through `SeatBuyer`: it fills identity.md listings only up to an immutable price ceiling and forwards every seat straight to the vault — so the automated buyer (or a compromised keeper) can never overpay or divert funds. This is the rail that takes buying from manual to fully automatic.
 - **Fully tested.** `forge test` covers conservation (no wei created or lost), double‑claim protection, over‑commit protection, the guardian veto, and the 80/20 split.
 
 ## Build & test
