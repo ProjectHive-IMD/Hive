@@ -18,7 +18,7 @@ $HIVE trade  ──►  fee (Pons v2)  ──►  HiveSplitter  ──►  seat 
                                                                          └── 60% → HiveStaking      (extra, stakers only)
 ```
 
-Two ways to earn, and you never have to lock to earn *something* — see **[REWARDS.md](REWARDS.md)** for the full mechanics (loyalty staking, soft‑stake TWAB for holders, and why the holder pot can't be farmed).
+Two ways to earn, and you never have to lock to earn *something* — see **[REWARDS.md](REWARDS.md)** for the full mechanics (loyalty staking, the holder slice and its 10,000 $HIVE minimum, and how to verify every payout yourself — each round's full list is in [`rounds/`](rounds/)).
 
 ## Contracts
 
